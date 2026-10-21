@@ -1,0 +1,2189 @@
+{
+  "name": "Price/Demand Alerts - Gears Garage",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "daysInterval": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3c53cec8-9240-4950-9ea4-c8366fac0792",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst RATING_THRESHOLD = 4.5;\nconst results = [];\n\nfor (const item of items) {\n    const root = item.json;\n    const p = (root && root.data && root.data.amazonProduct) ? root.data.amazonProduct : root;\n    if (!p || !p.asin) continue;\n\n    const rating = p.rating || -1;\n    const reviewCount = p.ratingsTotal || 0;\n    const currentPrice = (p.price && p.price.value) ? p.price.value : -1;\n\n    const inStock = !!(p.availability && p.availability.status === 'IN_STOCK');\n\n    const highRating = rating > 0 && rating >= RATING_THRESHOLD && reviewCount > 0;\n\n    if (!highRating) continue;\n\n    results.push({\n          json: {\n                  asin: p.asin,\n                  title: p.title || '',\n                  reason: 'Producto 5 estrellas',\n                  priority: 2,\n                  currentPrice: currentPrice > 0 ? currentPrice.toFixed(2) : 'N/A',\n                  ratingStars: rating.toFixed(1),\n                  reviewCount: reviewCount,\n                  inStock: inStock,\n                  url: p.link || ('https://www.amazon.com/dp/' + p.asin)\n          }\n    });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "baddca28-014f-4adf-8bff-9c2ee078a76c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "text": "=🔥 {{  $json.reason  }}!\n\n{{  $json.title  }}\n\nPrecio actual: ${{  $json.currentPrice  }}\nRating: {{  $json.ratingStars  }}/5 - {{  $json.reviewCount  }} reviews\n\nVer en Amazon: {{  $json.url  }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Aprobar",
+                    "additionalFields": {
+                      "callback_data": "=approve_{{ $json.asin }}"
+                    }
+                  },
+                  {
+                    "text": "❌ Rechazar",
+                    "additionalFields": {
+                      "callback_data": "=reject_{{ $json.asin }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "b6f05dea-e017-4017-9491-ba22bf9b52bb",
+      "name": "Send a text message",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -144,
+        -144
+      ],
+      "id": "955c0ef8-cdfc-427c-9a85-739a7455aa93",
+      "name": "Telegram Trigger",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "create",
+        "name": "={{ $json.data.amazonProduct.title }}",
+        "additionalFields": {
+          "description": "={{ $json.data.amazonProduct.brand }} - {{ $json.data.amazonProduct.title }}. Rating: {{ $json.data.amazonProduct.rating }}/5 ({{ $json.data.amazonProduct.ratingsTotal }} reviews). Ver en Amazon: {{ $json.data.amazonProduct.url }}",
+          "regularPrice": "={{ $json.data.amazonProduct.price.value.toString() }}",
+          "sku": "={{ $('Verificar duplicado').item.json.asin }}",
+          "status": "draft"
+        },
+        "dimensionsUi": {},
+        "imagesUi": {
+          "imagesValues": [
+            {
+              "alt": "={{ $json.data.amazonProduct.title }}",
+              "src": "={{ $json.data.amazonProduct.mainImageUrl }}",
+              "name": ""
+            }
+          ]
+        },
+        "metadataUi": {}
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -80
+      ],
+      "id": "882e3ace-46c8-4adc-b8d8-0802b08f8532",
+      "name": "Create a product",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const asins = [\n    \"B0BTPP4GNY\",\"B0CMGBN8PY\",\"B01FKQVZOS\",\"B0858ZS5ZK\",\"B0G5YC3LNB\",\n    \"B0D3WR3BD5\",\"B0CQBX3JZ6\",\"B074Z3968Y\",\"B0BL1S9LFJ\",\"B0D6J5B98H\",\n    \"B098WVKF19\",\"B0CKYFSKNN\",\"B0BJZQ37G7\",\"B0C1Z4MQF8\"\n  ];\n\nreturn asins.map(asin => ({ json: { asin } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "41fa9b4d-b13d-4f8e-90e4-b1fe76bc06e1",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "content": "Antes de publicar completar estos campos\n\n1. [RESUELTO] Re-fetch/Verificar producto por ASIN: header API-KEY = API key de Canopy\n2. [RESUELTO] Credencial WooCommerce: Consumer Key/Secret configurados\n3. Nodos Telegram (Send a text message x2, Enviar video, Enviar resumen nocturno): Chat ID = {{TELEGRAM_CHAT_ID}} (confirmado real)\n4. [RESUELTO] Generar copy y video: usan credencial Bearer Auth de Pollinations (gen.pollinations.ai), cuenta con saldo cargado\n\nCanopy: 100 req gratis/mes. Requiere query params asin + domain (ej. US) y header API-KEY.\n\nVideo: cambiado de Seedance (fal.ai, $0.24/s) a Pollinations wan-fast ($0.01/s) por presupuesto. 22 segundos por clip = ~$0.22/video. A 5 videos/semana (~21.7/mes) = ~$4.78/mes, dentro del presupuesto de $5/mes. Usa la imagen real del producto como start frame.\n\nCopy (texto IA): Pollinations modelo openai via gen.pollinations.ai, ~$0.0001/request, costo despreciable.\n\nFlujo diario 21:00: se buscan productos en Borrador y se envia un resumen por Telegram con botones Publicar/Descartar por producto.\n\nPENDIENTE: falta conectar los botones (publish_/discard_draft_/video_approve_/video_regen_/video_discard_) a acciones reales en WooCommerce - por ahora solo se envian, no se procesan las respuestas."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        448
+      ],
+      "id": "7ccb8f6e-92a6-4df1-a754-48a1d106eb41",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "url": "https://rest.canopyapi.co/api/amazon/product",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.callback_query.data.replace('approve_', '') }}"
+            },
+            {
+              "name": "domain",
+              "value": "US"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "API-KEY",
+              "value": "{{CANOPY_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        304,
+        -80
+      ],
+      "id": "bf32239c-a7ed-466e-8edc-f49ff13a424c",
+      "name": "Re-fetch producto por ASIN"
+    },
+    {
+      "parameters": {
+        "jsCode": "const woo = $json;\nconst p = $('Re-fetch producto por ASIN').item.json;\n\nconst prompt = `Eres redactor de e-commerce para GearsGarage, tienda de accesorios automotrices. Responde SOLO con JSON valido, sin texto extra, con esta estructura exacta:\n{\"review_title\":\"titulo llamativo, max 60 caracteres\",\"review_body\":\"resena de 150-200 palabras en espanol, tono cercano y experto\",\"ig_caption\":\"caption Instagram con emojis y hashtags\",\"tiktok_caption\":\"caption corto para TikTok con hashtags, max 150 caracteres\",\"fb_caption\":\"caption Facebook con llamada a la accion\"}\n\nProducto: ${p.title}\nMarca: ${p.brand}\nPrecio: $${p.price && p.price.value}\nRating: ${p.rating}/5 (${p.ratingsTotal} reviews)\nLink: ${p.link}`;\n\nreturn [{ json: { productId: woo.id, prompt, encodedPrompt: encodeURIComponent(prompt) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        112
+      ],
+      "id": "c02b4441-3896-48c1-8747-be1c749b3abe",
+      "name": "Preparar prompt IA"
+    },
+    {
+      "parameters": {
+        "url": "=https://gen.pollinations.ai/text/{{ $json.encodedPrompt }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "openai"
+            },
+            {
+              "name": "json",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1440,
+        112
+      ],
+      "id": "8677e5a9-2c0c-447e-b3d8-01dedf2efca1",
+      "name": "Generar copy con Pollinations",
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json;\nlet text;\nif (typeof raw === 'string') {\n    text = raw;\n} else if (typeof raw.data === 'string') {\n    text = raw.data;\n} else if (raw.review_title) {\n    text = null;\n} else {\n    text = JSON.stringify(raw);\n}\n\nlet parsed;\nif (!text) {\n    parsed = raw;\n} else {\n    try {\n          parsed = JSON.parse(text);\n    } catch (e) {\n          const match = text.match(/\\{[\\s\\S]*\\}/);\n          if (match) {\n                  try { parsed = JSON.parse(match[0]); } catch (e2) { parsed = null; }\n          }\n    }\n}\n\nif (!parsed) {\n    parsed = {\n          review_title: 'Nuevo producto GearsGarage',\n          review_body: text || 'No se pudo generar el copy automaticamente.',\n          ig_caption: '',\n          tiktok_caption: '',\n          fb_caption: ''\n    };\n}\n\nconst productId = $('Preparar prompt IA').item.json.productId;\n\nreturn [{ json: { productId, review_title: parsed.review_title, review_body: parsed.review_body, ig_caption: parsed.ig_caption, tiktok_caption: parsed.tiktok_caption, fb_caption: parsed.fb_caption } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        112
+      ],
+      "id": "f48faec4-0ff3-4315-aa83-e1a34b42366a",
+      "name": "Parsear copy IA"
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "update",
+        "productId": "={{ $json.productId }}",
+        "updateFields": {
+          "description": "={{ $json.review_body }}",
+          "shortDescription": "={{ $json.review_title }}"
+        },
+        "dimensionsUi": {},
+        "imagesUi": {},
+        "metadataUi": {
+          "metadataValues": [
+            {
+              "key": "ig_caption",
+              "value": "={{ $json.ig_caption }}"
+            },
+            {
+              "key": "tiktok_caption",
+              "value": "={{ $json.tiktok_caption }}"
+            },
+            {
+              "key": "fb_caption",
+              "value": "={{ $json.fb_caption }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        112
+      ],
+      "id": "9a2a03b3-4e9a-42a4-95b9-fa383b8c91bb",
+      "name": "Guardar copy en producto",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let p;\ntry {\n  p = $('Re-fetch producto por ASIN').item.json.data.amazonProduct;\n} catch (e) {\n  const wc = $json;\n  const desc = wc.description || '';\n  const brand = desc.includes(' - ') ? desc.split(' - ')[0].trim() : '';\n  p = { brand, title: wc.name || '', mainImageUrl: (wc.images && wc.images[0] && wc.images[0].src) || '' };\n}\nconst productId = $json.id;\n\nconst productName = `${p.brand || ''} ${p.title}`.trim();\nconst shortName = productName.length > 60 ? productName.slice(0, 57) + '...' : productName;\n\nconst scenes = [\n  {\n    text: `Professional commercial advertisement video for ${productName}, opening hook close-up shot, smooth dolly zoom into the product, studio lighting with dramatic highlights, premium automotive brand commercial style, upbeat energetic pacing`,\n    caption: shortName\n  },\n  {\n    text: `Professional commercial advertisement video for ${productName}, dynamic multi-angle product showcase, tracking shot and rotating reveal, clean hero shot to close the video, premium automotive brand commercial style`,\n    caption: 'Disponible ahora en GearsGarage.com'\n  }\n];\n\nreturn scenes.map((scene, i) => ({\n  json: {\n    productId,\n    clipIndex: i,\n    videoPrompt: scene.text,\n    caption: scene.caption,\n    imageUrl: p.mainImageUrl\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        112
+      ],
+      "id": "69bcebab-d719-47ba-aed2-796fe1c39388",
+      "name": "Preparar prompt video"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://gen.pollinations.ai/video/' + encodeURIComponent($json.videoPrompt) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "wan"
+            },
+            {
+              "name": "duration",
+              "value": "15"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 600000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2336,
+        112
+      ],
+      "id": "9cdfb353-c0e5-4c0c-a5f1-c39538723f8a",
+      "name": "Generar video con Seedance",
+      "credentials": {
+        "httpBearerAuth": {
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let copy;\ntry {\n    copy = $('Guardar copy en producto').item.json;\n} catch (e) {\n    copy = $('Buscar producto para regenerar').item.json;\n}\nconst items = $input.all();\n\nreturn items.map(item => ({\n    json: {\n          productId: copy.id,\n          productName: copy.name,\n          reviewTitle: copy.short_description,\n          igCaption: copy.meta_data ? (copy.meta_data.find(m => m.key === 'ig_caption') || {}).value : '',\n          tiktokCaption: copy.meta_data ? (copy.meta_data.find(m => m.key === 'tiktok_caption') || {}).value : '',\n          fbCaption: copy.meta_data ? (copy.meta_data.find(m => m.key === 'fb_caption') || {}).value : '',\n          caption: item.json.caption,\n          clipIndex: item.json.clipIndex,\n    },\n    binary: item.binary\n}));\n    }\n}))\n}\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        112
+      ],
+      "id": "45ff2597-b4c2-4498-92b7-fc14d8c98e0c",
+      "name": "Extraer URL de video"
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "binaryData": true,
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Aprobar video",
+                    "additionalFields": {
+                      "callback_data": "=video_approve_{{ $('Preparar prompt video').first().json.productId }}"
+                    }
+                  },
+                  {
+                    "text": "🔄 Regenerar",
+                    "additionalFields": {
+                      "callback_data": "=video_regen_{{ $('Preparar prompt video').first().json.productId }}"
+                    }
+                  },
+                  {
+                    "text": "❌ Descartar",
+                    "additionalFields": {
+                      "callback_data": "=video_discard_{{ $('Preparar prompt video').first().json.productId }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2784,
+        112
+      ],
+      "id": "1a1a3a89-bb53-4200-aeb8-043a2d6cac31",
+      "name": "Enviar video para revision",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 21
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        720
+      ],
+      "id": "81d72ad3-f89f-4aa4-979b-a2b478a54b3d",
+      "name": "Trigger resumen nocturno"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "status": "draft"
+        }
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        400,
+        720
+      ],
+      "id": "4c022e5b-c530-4acc-9196-d7f91dd1d09b",
+      "name": "Obtener productos en borrador",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items\n  .filter(item => {\n    const meta = item.json.meta_data || [];\n    const ready = (meta.find(m => m.key === 'video_ready') || {}).value;\n    return ready === 'true' || ready === true;\n  })\n  .map(item => {\n    const p = item.json;\n    const meta = p.meta_data || [];\n    const igCaption = (meta.find(m => m.key === 'ig_caption') || {}).value || '';\n    const videoUrl = (meta.find(m => m.key === 'video_url') || {}).value || '';\n    const price = p.price || (p.regular_price || 'N/D');\n    const created = p.date_created ? p.date_created.split('T')[0] : '';\n\n    const text = `📦 *${p.name}*\\nPrecio: $${price}\\nCreado: ${created}\\n${p.short_description ? p.short_description + '\\n' : ''}${igCaption ? '\\n' + igCaption : ''}${videoUrl ? '\\n🎬 Video: ' + videoUrl : ''}\\n\\nWooCommerce ID: ${p.id}`;\n\n    return { json: {\n          productId: p.id,\n          text,\n          permalink: p.permalink\n    } };\n  });"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        784
+      ],
+      "id": "ac744692-2634-4b69-ad8c-29f92ad076d0",
+      "name": "Formatear resumen producto"
+    },
+    {
+      "parameters": {
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "text": "={{  $json.text  }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "📱 Publicar a redes",
+                    "additionalFields": {
+                      "callback_data": "=postsocial_{{ $json.productId }}",
+                      "pay": false
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        848,
+        720
+      ],
+      "id": "ad8e5c17-dabf-4b78-a135-7b3d270c2675",
+      "name": "Enviar resumen nocturno",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://rest.canopyapi.co/api/amazon/product",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "asin",
+              "value": "={{ $json.asin }}"
+            },
+            {
+              "name": "domain",
+              "value": "US"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "API-KEY",
+              "value": "{{CANOPY_API_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        144,
+        144
+      ],
+      "id": "8e76cfc2-5019-4208-a00c-fa5c3637858d",
+      "name": "Verificar producto por ASIN"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "58be4440-59c2-49e3-bd34-5ab650975cf4",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "approve_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        -80
+      ],
+      "id": "50d3f97d-9222-4ae0-892d-4a9fb6c2ce38",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = new Date();\nconst monthKey = now.getFullYear() + '-' + (now.getMonth() + 1);\n\nif (staticData.canopyMonth !== monthKey) {\n  staticData.canopyMonth = monthKey;\n  staticData.canopyCount = 0;\n}\n\nconst CAP = 590; // ~$5/mes: 100 gratis + 490 pagados a $0.01 c/u, con margen\n\nstaticData.canopyCount = (staticData.canopyCount || 0) + 1;\n\nif (staticData.canopyCount > CAP) {\n  throw new Error('Limite mensual de Canopy alcanzado (~$5, ' + CAP + ' requests). Contador: ' + staticData.canopyCount + '. Se resetea el proximo mes.');\n}\n\nreturn $input.all();"
+      },
+      "id": "de541675-0123-4766-99c2-10480a3e92cd",
+      "name": "Limite Canopy (Schedule)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst now = new Date();\nconst monthKey = now.getFullYear() + '-' + (now.getMonth() + 1);\n\nif (staticData.canopyMonth !== monthKey) {\n  staticData.canopyMonth = monthKey;\n  staticData.canopyCount = 0;\n}\n\nconst CAP = 590; // ~$5/mes: 100 gratis + 490 pagados a $0.01 c/u, con margen\n\nstaticData.canopyCount = (staticData.canopyCount || 0) + 1;\n\nif (staticData.canopyCount > CAP) {\n  throw new Error('Limite mensual de Canopy alcanzado (~$5, ' + CAP + ' requests). Contador: ' + staticData.canopyCount + '. Se resetea el proximo mes.');\n}\n\nreturn $input.all();"
+      },
+      "id": "2d04a9ac-cd76-49d3-b665-7c9afa6ad893",
+      "name": "Limite Canopy (Approval)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nitems.sort((a, b) => (a.json.clipIndex || 0) - (b.json.clipIndex || 0));\n\nconst merged = { json: {}, binary: {} };\nitems.forEach((item, i) => {\n  const binKey = Object.keys(item.binary || {})[0] || 'data';\n  merged.binary['clip' + i] = item.binary[binKey];\n  merged.json['caption' + i] = item.json.caption || '';\n});\nmerged.json.productId = items[0].json.productId;\n\nreturn [merged];"
+      },
+      "id": "467bfabd-8d86-4a20-9a11-4d8ac5cb3260",
+      "name": "Combinar clips",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{STITCH_SERVER_URL}}/stitch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "{{STITCH_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "clip_0",
+              "inputDataFieldName": "clip0"
+            },
+            {
+              "name": "caption_0",
+              "value": "={{ $json.caption0 }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "clip_1",
+              "inputDataFieldName": "clip1"
+            },
+            {
+              "name": "caption_1",
+              "value": "={{ $json.caption1 }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "c2c88818-4ede-4927-bd90-9ae59818446e",
+      "name": "Unir clips (Stitch)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2784,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.video_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "{{STITCH_API_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "82a2d988-a849-4fa2-a3dd-a39414613e88",
+      "name": "Descargar video final",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3008,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {
+          "sku": "={{ $json.callback_query.data.replace('approve_', '') }}"
+        }
+      },
+      "id": "206fed47-6707-461b-b58c-e2315ae42886",
+      "name": "Buscar producto existente",
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -448
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\nconst trigger = $('Telegram Trigger').item.json;\nconst asin = trigger.callback_query.data.replace('approve_', '');\nconst validResults = results.filter(r => r.json && r.json.id);\nreturn [{ json: {\n  ...trigger,\n  asin,\n  isDuplicate: validResults.length > 0,\n  existingProductId: validResults.length > 0 ? validResults[0].json.id : null\n} }];"
+      },
+      "id": "927302d7-e984-4242-a8b3-5be0657abc41",
+      "name": "Verificar duplicado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "eb0f0b21-b29e-4f21-b208-4b81f33c0b28",
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "06c4b39e-e731-454f-a540-0312eccacb93",
+      "name": "Es duplicado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "{{TELEGRAM_CHAT_ID}}",
+        "text": "=⚠️ Producto duplicado detectado.\n\nASIN: {{ $json.asin }}\nYa existe como producto #{{ $json.existingProductId }} en WooCommerce.\n\nSe omite la creacion para evitar duplicados (no se genera video nuevo).",
+        "additionalFields": {}
+      },
+      "id": "e9dc0839-50d7-4855-8e50-8ccd1f6f5881",
+      "name": "Notificar duplicado",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        -576
+      ],
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{  $json.callback_query.message.chat.id }} }}",
+        "messageId": "={{ $json.callback_query.message.message_id }}",
+        "text": "={{  $json.callback_query.message.text + '\\n\\n' + ($json.callback_query.data.startsWith('approve_') ? '✅ Aprobado' : '❌ Rechazado') }} }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        192
+      ],
+      "id": "c3639082-8ed2-4545-b732-40fd17440e28",
+      "name": "Quitar botones tras respuesta",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "20524b9b-3164-46f9-93e7-d0a78ffec14a",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "approve_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            },
+            {
+              "id": "86a94e67-bba3-49ca-964d-86052dbb067d",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "reject_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        288,
+        320
+      ],
+      "id": "923fe013-2c6b-4fcb-99ca-97b24676aa02",
+      "name": "Filtro aprobar-rechazar"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d40e0dee-0133-40f3-8c95-2a01d676d808",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "video_regen_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        80
+      ],
+      "id": "c6795a63-3b65-42f1-bfb2-e18c23f2eaff",
+      "name": "If video_regen"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4865cbeb-97db-4130-94d7-fa6b32bc1719",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "video_discard_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        240
+      ],
+      "id": "14dd5955-153a-4a2e-8f12-66182309aad7",
+      "name": "If video_discard"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8e422ca8-b8e0-4b42-b7a6-3c3d4ea4ef61",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "video_approve_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        400
+      ],
+      "id": "210d7953-e628-45d1-b01c-7bb5dac8fa8e",
+      "name": "If video_approve"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "db1937a0-9d4f-44c1-999d-52e7661c9edc",
+              "leftValue": "={{ $json.callback_query.data }}",
+              "rightValue": "postsocial_",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        80,
+        560
+      ],
+      "id": "26d8decb-4171-47d0-bd7e-ece7246eae79",
+      "name": "If postsocial"
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "messageId": "={{ $json.callback_query.message.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        48
+      ],
+      "id": "798741ad-a55a-44cd-be02-56799545a737",
+      "name": "Borrar mensaje video (regen)",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "text": "🔄 Regenerando video, dame un minuto...",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        96
+      ],
+      "id": "3073d70d-63e7-4265-9af4-d78ca0ec12f7",
+      "name": "Avisar regenerando",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "productId": "={{ $json.callback_query.data.replace('video_regen_','') }}"
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        288
+      ],
+      "id": "ba34e757-3e56-475d-92a1-2af8ffa0f9c1",
+      "name": "Buscar producto para regenerar",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "messageId": "={{ $json.callback_query.message.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        208
+      ],
+      "id": "596b7933-ed7d-4ebf-8b31-df70632b029d",
+      "name": "Borrar mensaje video (discard)",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "text": "❌ Video descartado. El producto sigue como borrador — podés generar un video nuevo cuando quieras.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        256
+      ],
+      "id": "748dd0db-2c7c-4dff-98f5-0c5fe90d0b9f",
+      "name": "Avisar descarte",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "deleteMessage",
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "messageId": "={{ $json.callback_query.message.message_id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        368
+      ],
+      "id": "7587daae-61ef-416b-88fd-f5318557a011",
+      "name": "Borrar mensaje video (approve)",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "text": "✅ Video aprobado. Subiendo datos completos al producto...",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        416
+      ],
+      "id": "a70fd000-c31a-4caa-9076-d7f09ec6cfe7",
+      "name": "Avisar aprobado",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "productId": "={{ $json.callback_query.data.replace('video_approve_','') }}"
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        320,
+        464
+      ],
+      "id": "846f95d2-e5af-4df6-a797-789f20aec30c",
+      "name": "Buscar producto (approve)",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "update",
+        "productId": "={{ $json.id }}",
+        "updateFields": {},
+        "dimensionsUi": {},
+        "imagesUi": {},
+        "metadataUi": {
+          "metadataValues": [
+            {
+              "key": "video_ready",
+              "value": "true"
+            },
+            {
+              "key": "video_url",
+              "value": "={{ ($json.meta_data.find(m => m.key === 'pending_video_url') || {}).value || '' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        560,
+        464
+      ],
+      "id": "b34f9723-34ee-4c58-9707-bb90cc34f6cb",
+      "name": "Marcar video listo",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "chatId": "={{ $('If postsocial').item.json.callback_query.message.chat.id }}",
+        "messageId": "={{ $('If postsocial').item.json.callback_query.message.message_id }}",
+        "text": "={{ $('If postsocial').item.json.callback_query.message.text + '\\n\\n✅ Publicado en Facebook e Instagram.' }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1664,
+        624
+      ],
+      "id": "4ec18467-3092-4751-baed-fea78e38eb34",
+      "name": "Avisar falta redes",
+      "credentials": {
+        "telegramApi": {
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "product",
+        "operation": "update",
+        "productId": "={{ $('Preparar prompt video').first().json.productId }}",
+        "updateFields": {},
+        "dimensionsUi": {},
+        "imagesUi": {},
+        "metadataUi": {
+          "metadataValues": [
+            {
+              "key": "pending_video_url",
+              "value": "={{ $json.video_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        3008,
+        432
+      ],
+      "id": "b22f1f48-17af-4b4a-8b90-257a995ac023",
+      "name": "Guardar video_url pendiente",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "productId": "={{ $json.callback_query.data.replace('video_discard_','') }}"
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        320,
+        304
+      ],
+      "id": "95f4ddfb-e660-429a-b6e8-f7519610d071",
+      "name": "Buscar producto (discard)",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{STITCH_SERVER_URL}}/reject",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "{{STITCH_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"filename\": ( ($json.meta_data.find(m => m.key === 'pending_video_url') || {}).value || '' ).split('/').pop() } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        304
+      ],
+      "id": "ccde5169-e6ca-4fee-8ff5-274341190144",
+      "name": "Marcar video rechazado (servidor)"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "productId": "={{ $json.callback_query.data.replace('postsocial_','') }}"
+      },
+      "type": "n8n-nodes-base.wooCommerce",
+      "typeVersion": 1,
+      "position": [
+        320,
+        624
+      ],
+      "id": "27eaf5f4-6a5e-4957-86ec-483e8df642ed",
+      "name": "Buscar producto (postsocial)",
+      "credentials": {
+        "wooCommerceApi": {
+          "name": "WooCommerce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{STITCH_SERVER_URL}}/publish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "{{STITCH_API_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"filename\": ( ($json.meta_data.find(m => m.key === 'video_url') || {}).value || '' ).split('/').pop() } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        624
+      ],
+      "id": "33420367-ca50-4ea3-a5b8-9355f1507171",
+      "name": "Marcar video publicado (servidor)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/{{FB_PAGE_ID}}/videos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file_url",
+              "value": "={{ ($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'video_url') || {}).value }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ (($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'fb_caption') || {}).value) || $('Buscar producto (postsocial)').item.json.name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        624
+      ],
+      "id": "326c50cb-718f-4d32-be4b-1c4b1109e724",
+      "name": "Publicar en Facebook",
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Facebook Page Token (GearGarage)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/{{IG_USER_ID}}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "video_url",
+              "value": "={{ ($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'video_url') || {}).value }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ (($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'ig_caption') || {}).value) || $('Buscar producto (postsocial)').item.json.name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1008,
+        624
+      ],
+      "id": "7edca21f-fba5-41c7-b584-e0213949b024",
+      "name": "Crear contenedor IG",
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Facebook Page Token (GearGarage)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1232,
+        624
+      ],
+      "id": "8fbc5cf2-d718-4d70-99a3-9ce7410b3866",
+      "name": "Esperar procesamiento IG"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/{{IG_USER_ID}}/media_publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('Crear contenedor IG').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        624
+      ],
+      "id": "6f80398c-f312-4ea0-95cd-d985c3154984",
+      "name": "Publicar en Instagram",
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "Facebook Page Token (GearGarage)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ ($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'video_url') || {}).value }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "503821da-5913-4653-8b29-a47c8c02dfec",
+      "name": "Descargar video (TikTok)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        784,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (let i = 0; i < items.length; i++) {\n  const binaryData = items[i].binary && items[i].binary.data;\n  if (!binaryData) { throw new Error('No se encontro binary.data en el item ' + i); }\n  const buffer = await this.helpers.getBinaryDataBuffer(i, 'data');\n  results.push({ json: { ...items[i].json, videoSize: buffer.length }, binary: items[i].binary });\n}\nreturn results;"
+      },
+      "id": "9c482eb5-d5b1-4fc1-a8fc-b5fdd122fa6d",
+      "name": "Calcular tamano video (TikTok)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"post_info\": { \"title\": ((($('Buscar producto (postsocial)').item.json.meta_data.find(m => m.key === 'tiktok_caption') || {}).value) || $('Buscar producto (postsocial)').item.json.name), \"privacy_level\": \"SELF_ONLY\", \"disable_duet\": false, \"disable_comment\": false, \"disable_stitch\": false }, \"source_info\": { \"source\": \"FILE_UPLOAD\", \"video_size\": $json.videoSize, \"chunk_size\": $json.videoSize, \"total_chunk_count\": 1 } } }}",
+        "options": {}
+      },
+      "id": "cfcfc067-d704-40d3-86b5-d2abe7cf9841",
+      "name": "Iniciar publicacion TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1232,
+        832
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "TikTok Access Token (GearGarage)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "c7d5eb50-1754-4ae3-ad51-8b33fa73ae83",
+      "name": "Combinar video y publicacion (TikTok)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1456,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.data.upload_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/mp4"
+            },
+            {
+              "name": "Content-Range",
+              "value": "={{ 'bytes 0-' + ($json.videoSize - 1) + '/' + $json.videoSize }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "30b36bd3-0524-460a-8de0-14941dbfac2c",
+      "name": "Subir video TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1664,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "id": "ddb0d2a5-ee32-414c-b594-fd5dfc3bf401",
+      "name": "Esperar procesamiento TikTok",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1888,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"publish_id\": $('Iniciar publicacion TikTok').item.json.data.publish_id } }}",
+        "options": {}
+      },
+      "id": "0155fe24-cf66-4fff-a3f5-04e50e85a26b",
+      "name": "Verificar estado TikTok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2112,
+        832
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "TikTok Access Token (GearGarage)"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filtro aprobar-rechazar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Limite Canopy (Schedule)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-fetch producto por ASIN": {
+      "main": [
+        [
+          {
+            "node": "Create a product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a product": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar prompt IA": {
+      "main": [
+        [
+          {
+            "node": "Generar copy con Pollinations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar copy con Pollinations": {
+      "main": [
+        [
+          {
+            "node": "Parsear copy IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear copy IA": {
+      "main": [
+        [
+          {
+            "node": "Guardar copy en producto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar copy en producto": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar prompt video": {
+      "main": [
+        [
+          {
+            "node": "Generar video con Seedance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar video con Seedance": {
+      "main": [
+        [
+          {
+            "node": "Extraer URL de video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer URL de video": {
+      "main": [
+        [
+          {
+            "node": "Combinar clips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger resumen nocturno": {
+      "main": [
+        [
+          {
+            "node": "Obtener productos en borrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener productos en borrador": {
+      "main": [
+        [
+          {
+            "node": "Formatear resumen producto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear resumen producto": {
+      "main": [
+        [
+          {
+            "node": "Enviar resumen nocturno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar producto por ASIN": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Buscar producto existente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If video_regen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limite Canopy (Schedule)": {
+      "main": [
+        [
+          {
+            "node": "Verificar producto por ASIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limite Canopy (Approval)": {
+      "main": [
+        [
+          {
+            "node": "Re-fetch producto por ASIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combinar clips": {
+      "main": [
+        [
+          {
+            "node": "Unir clips (Stitch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unir clips (Stitch)": {
+      "main": [
+        [
+          {
+            "node": "Descargar video final",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar video_url pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar video final": {
+      "main": [
+        [
+          {
+            "node": "Enviar video para revision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar producto existente": {
+      "main": [
+        [
+          {
+            "node": "Verificar duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar duplicado": {
+      "main": [
+        [
+          {
+            "node": "Es duplicado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es duplicado?": {
+      "main": [
+        [
+          {
+            "node": "Notificar duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Limite Canopy (Approval)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro aprobar-rechazar": {
+      "main": [
+        [
+          {
+            "node": "Quitar botones tras respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If video_regen": {
+      "main": [
+        [
+          {
+            "node": "Borrar mensaje video (regen)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Avisar regenerando",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar producto para regenerar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If video_discard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If video_discard": {
+      "main": [
+        [
+          {
+            "node": "Borrar mensaje video (discard)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Avisar descarte",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar producto (discard)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If video_approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If video_approve": {
+      "main": [
+        [
+          {
+            "node": "Borrar mensaje video (approve)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Avisar aprobado",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar producto (approve)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If postsocial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If postsocial": {
+      "main": [
+        [
+          {
+            "node": "Buscar producto (postsocial)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Buscar producto para regenerar": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar producto (approve)": {
+      "main": [
+        [
+          {
+            "node": "Marcar video listo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar producto (discard)": {
+      "main": [
+        [
+          {
+            "node": "Marcar video rechazado (servidor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar producto (postsocial)": {
+      "main": [
+        [
+          {
+            "node": "Marcar video publicado (servidor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar video publicado (servidor)": {
+      "main": [
+        [
+          {
+            "node": "Publicar en Facebook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Descargar video (TikTok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar en Facebook": {
+      "main": [
+        [
+          {
+            "node": "Crear contenedor IG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear contenedor IG": {
+      "main": [
+        [
+          {
+            "node": "Esperar procesamiento IG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar procesamiento IG": {
+      "main": [
+        [
+          {
+            "node": "Publicar en Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar en Instagram": {
+      "main": [
+        [
+          {
+            "node": "Avisar falta redes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar video (TikTok)": {
+      "main": [
+        [
+          {
+            "node": "Calcular tamano video (TikTok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular tamano video (TikTok)": {
+      "main": [
+        [
+          {
+            "node": "Iniciar publicacion TikTok",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Combinar video y publicacion (TikTok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Iniciar publicacion TikTok": {
+      "main": [
+        [
+          {
+            "node": "Combinar video y publicacion (TikTok)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combinar video y publicacion (TikTok)": {
+      "main": [
+        [
+          {
+            "node": "Subir video TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir video TikTok": {
+      "main": [
+        [
+          {
+            "node": "Esperar procesamiento TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar procesamiento TikTok": {
+      "main": [
+        [
+          {
+            "node": "Verificar estado TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "nodeGroups": [],
+  "tags": []
+}
