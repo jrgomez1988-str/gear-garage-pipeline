@@ -24,7 +24,7 @@ It runs in production for **[gearsgarages.com](https://gearsgarages.com)**, an A
 ## Architecture
 
 ```mermaid
-flowchart LR
+flowchart TD
     S[Weekly schedule] --> C{{Canopy budget guard}} --> A[CanopyAPI<br/>Amazon product data]
     A --> T1[Telegram:<br/>Approve / Reject]
     T1 -->|callback| D{Duplicate in<br/>WooCommerce?}
